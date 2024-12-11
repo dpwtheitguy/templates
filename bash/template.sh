@@ -11,33 +11,24 @@
 # CHANGE(NAME): Thing I did and why (JIRA #)
 
 ### Security
-# Exit on fail, unset variables, disallow ?/* globbing, fail when piped commands fails
-#
-# NOTE: this will cause exits on (( i++ )), for example.  Use (( ++i )) where possible.
+# Exit on fail, unset variables, disallow ?/* globbing, fail when piped commands fail
 #
 # The -e option causes the shell to immediately exit if any command fails (i.e., exits with a non-zero status).
 # The -u option causes the shell to treat unset variables as an error and exit immediately if any unset variable is used in a command.
 # The -f option disables file name generation (i.e., disables globbing).
-# The -o pipefail option sets the exit status of a pipeline to the status of the last command that exits with a non-zero status
+# The -o pipefail option sets the exit status of a pipeline to the status of the last command that exits with a non-zero status.
   set -euf -o pipefail
 
-# File operations security: prevent cd operatons. (like old school /bin/bash -r)
+# File operations security: prevent cd operations.
   set -r
 
 ### Debug Mode
   # set -x
 
 ### Global Variables/Capture Arguments
-# use PEP8 friendly as a base (https://peps.python.org/pep-0008/#naming-conventions)
-# CIM vars are nice (https://docs.splunk.com/Documentation/CIM/5.1.0/User/CIMfields)
-# constants UPPERCASE
-# Variables with _ in front (_myvar) are to never be logged or directly addressed
-# _var style signals "if you're touching this you're probably doing it wrong"
-# declare -r for global readonly
-# readonly for local scope read only
-# double quote for variable expansion
-# single quote for no variable expansion plz
-# use good sense, practicality beats purity
+# Constants in UPPERCASE, variables with _ in front (_myvar) are sensitive
+# declare -r for global readonly, readonly for local scope read only
+# Always double-quote for variable expansion to prevent word splitting.
   declare argument_one
   argument_one="$1"
   readonly argument_one
@@ -49,52 +40,47 @@
   declare verbose_logging=0
 
 #######################################
-# initialize-args
-# Captures arguments from the CLI
+# initialize_args
+# Capture arguments from the CLI
 # Globals:
 #   None
 # Arguments:
 #   "$@"
 # Docs:
-#  None
+#   None
 #######################################
-function initialize-args() 
-  {
-    # parse the arguments, then call other functions or set variables that change execution behavior
-    local arr=("$@")
-    case "${arr[@]}" in
-      -v|--verbose)
-        verbose_logging=1;;
-      -h|--help)
-        show-help;;
-      *)
-        echo "unrecognized argument";;
-     esac
-  }
+function initialize_args() {
+  local arr=("$@")
+  case "${arr[@]}" in
+    -v|--verbose)
+      verbose_logging=1 ;;
+    -h|--help)
+      show_help ;;
+    *)
+      echo "Unrecognized argument" ;;
+  esac
+}
 
 #######################################
-# show-help
-# Shows help at the CLI
+# show_help
+# Show help message
 # Globals:
 #   None
 # Arguments:
 #   None
 # Docs:
-#  None
+#   None
 #######################################
-function show-help() 
-  {
-    # add other 
-    echo "Usage: $0 [-v | --verbose] [-h || --help] "
-    echo "  -v | --verbose  enable verbose mode"
-    echo "  -h | --help     display this help message"
-    exit 0
-  }
-
+function show_help() {
+  echo "Usage: $0 [-v | --verbose] [-h | --help]"
+  echo "  -v | --verbose  Enable verbose mode"
+  echo "  -h | --help     Display this help message"
+  exit 0
+}
 
 #######################################
-# write-log
-# Log in a Splunk friendly way.
+# write_log
+# Log in a Splunk-friendly way.
 # Globals:
 #   None
 # Arguments:
@@ -102,108 +88,101 @@ function show-help()
 # Docs:
 #  write-log "INFORMATIONAL" "This is an informational message"
 #######################################
-function write-log()
-{
-  severity=$1
+function write_log() {
+  local severity="$1"
   shift
-  # comment out this echo if you don't want users to see this, maybe we can use a argument in the future?
-  if $verbose_logging ; then
+  if $verbose_logging; then
     echo "[$(date +'%Y-%m-%dT%H:%M:%S%z')]: severity=${severity} src_ip=${src_ip} user=$(whoami) pwd=$(pwd) app=${0##*/} $*" >&2
   fi
   logger "severity=${severity} user=$(whoami) pwd=$(pwd) app=${0##*/} $*"
 }
 
 #######################################
-# initialize-flightcheck
-# Does common sense env checks to make sure this script is safe to run
+# initialize_flightcheck
+# Common sense env checks to ensure the script is safe to run
 # Globals:
+#   None
 # Arguments:
 #   None
 # Docs:
 #   None
 #######################################
-function initialize-flightcheck()
-{
-  # Use good sense to make sure your script is running where it should
-  # Correct OS, correct user, has the apps it needs
-  # Log out md5 and change details at start and end of scripts
+function initialize_flightcheck() {
   SCRIPT_START=$(date +%s)
   is_debian=0
   is_centos=0
 
-  # Check the system information to set the values of the constants
-  if grep -q "Debian" /etc/os-release; then
+  # Check OS
+  if grep -qi "debian" /etc/os-release; then
     is_debian=1
-  elif grep -q "CentOS" /etc/os-release; then
+  elif grep -qi "centos" /etc/os-release; then
     is_centos=1
   fi
 
-  # Check if running on Debian
-  if ! grep -qi "debian" /etc/os-release; then
+  # Ensure we're running on Debian
+  if [[ $is_debian -eq 0 ]]; then
     echo "This script requires Debian." >&2
     exit 1
   fi
 
-  # Check if running as root
+  # Ensure root user
   if [[ $EUID -ne 0 ]]; then
     echo "This script must be run as root." >&2
-   exit 1
-    fi
+    exit 1
+  fi
 
-  # Check if hostname is not "splunk"
+  # Ensure hostname doesn't contain 'splunk'
   if [[ $(hostname) == *"splunk"* ]]; then
     echo "This script cannot be run on hosts with 'splunk' in the hostname." >&2
     exit 1
   fi
 
-  # Capture my own MD5 just in case.
+  # Capture MD5 hash of the script for integrity check
   if ! command -v md5sum &> /dev/null; then
-    script_md5=$(md5sum "$0" | awk '{ print $1 }') >&2
+    echo "md5sum is required but not found." >&2
     exit 1
   fi
+  script_md5=$(md5sum "$0" | awk '{ print $1 }') 
 }
 
 #######################################
-# close-out
-# Any sort of cleanup you need to do. Store script runtime.
+# close_out
+# Cleanup and store script runtime
 # Globals:
-#  _script_start (unix time)
+#   SCRIPT_START (unix time)
 # Arguments:
 #   None
 # Docs:
 #   None
 #######################################
-function close-out() {
-  # Destroy any vars that sensitive
-  # unset my_api_key
-  # unset mypassword
+function close_out() {
+  # Log script runtime and exit status
   SCRIPT_END=$(date +%s)
-  SCRIPT_RUNTIME=$(($SCRIPT_END - $SCRIPT_START))
+  SCRIPT_RUNTIME=$((SCRIPT_END - SCRIPT_START))
+  write_log "INFO" "Script runtime: ${SCRIPT_RUNTIME} seconds"
 }
 
 #######################################
-# verb-noun
+# verb_noun
 # Simple explanation of what this function does
 # Globals:
-#   Global variables this funtion relies on
+#   None
 # Arguments:
 #   Input argument
 # Docs:
-#  https://learn.microsoft.com/en-us/powershell/scripting/developer/cmdlet/approved-verbs-for-windows-powershell-commands?view=powershell-7.3
+#   https://learn.microsoft.com/en-us/powershell/scripting/developer/cmdlet/approved-verbs-for-windows-powershell-commands?view=powershell-7.3
 #######################################
-function verb-noun()
-{
+function verb_noun() {
   readonly myvar
   local myothervar
-  echo 'doing the thing'
+  echo 'Doing the thing'
 }
 
 ### Main
-function main()
-{
-  initialize-args "${@}"
-  initialize-flightcheck
-  verb-noun
-  close-out
+function main() {
+  initialize_args "$@"
+  initialize_flightcheck
+  verb_noun
+  close_out
 }
 main "$@"
