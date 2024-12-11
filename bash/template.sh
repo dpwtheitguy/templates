@@ -7,8 +7,8 @@
 # Style guide: https://google.github.io/styleguide/shellguide.html
 
 ### TODO/Bugs/Change
-# TODO(dwilson): Thing I need to do (JIRA #)
-# CHANGE(dwilson, 1.19.2023.1): Thing I did and why (JIRA #)
+# TODO(NAME): Thing I need to do (JIRA #)
+# CHANGE(NAME): Thing I did and why (JIRA #)
 
 ### Security
 # Exit on fail, unset variables, disallow ?/* globbing, fail when piped commands fails
