@@ -2,7 +2,7 @@
 #
 # Description: Explain what this script does
 # SPDX-License-Identifier: None
-# Daniel Wilson <dwilson@voleon.com>
+# email <email@domain.com> 
 # ver 6.9.2020.1 / Shellcheck+Bashlint Pass Date
 # Style guide: https://google.github.io/styleguide/shellguide.html
 
